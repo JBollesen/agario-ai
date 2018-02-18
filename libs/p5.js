@@ -92,6 +92,7 @@ function useVertxTimer() {
   return useSetTimeout();
 }
 
+    //the thing that refreshes stuff
 function useMutationObserver() {
   var iterations = 0;
   var observer = new BrowserMutationObserver(flush);

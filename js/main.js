@@ -11,28 +11,29 @@ Config.warnings = false;
 var WIDTH            = $('#field').width();
 var HEIGHT           = 800;
 
-var MAX_AREA         = 10000;
+//this is used in learning...but I didn't prevent users from exceeding the max 
+var MAX_AREA         = 10000; //this changes if a new record is set. It's better to keep this unrealistically high
 var MIN_AREA         = 400;
 
 var RELATIVE_SIZE    = 1.1;
 var DECREASE_SIZE    = 0.998;
 
 var DETECTION_RADIUS = 150;
-var FOOD_DETECTION   = 3;
-var PLAYER_DETECTION = 3;
+var FOOD_DETECTION   = 25;
+var PLAYER_DETECTION = 25;
 
 var MIN_SPEED        = 0.6;
-var SPEED            = 3;
+var SPEED            = 10; //used to be 3
 
 var FOOD_AREA        = 80;
 var FOOD_AMOUNT      = Math.round(WIDTH * HEIGHT * 4e-4);
 
 // GA settings
 var PLAYER_AMOUNT     = Math.round(WIDTH * HEIGHT * 8e-5);
-var ITERATIONS        = 1000;
+var ITERATIONS        = 1000; //added 3 0's
 var START_HIDDEN_SIZE = 0;
-var MUTATION_RATE     = 0.3;
-var ELITISM_PERCENT   = 0.1;
+var MUTATION_RATE     = 0.25; //was .3
+var ELITISM_PERCENT   = 0.01;
 
 // Trained population
 var USE_TRAINED_POP = true;
@@ -42,8 +43,14 @@ var neat;
 
 /** Construct the genetic algorithm */
 function initNeat(){
-  neat = new Neat(
-    1 + PLAYER_DETECTION * 3 + FOOD_DETECTION * 2,
+    neat = new Neat(
+    //Current Size / Max size (max size gets bigger, literal max size of the largest cell recorded).
+    //time spent alive
+    //x/y velocities (self)
+    //place on leaderboard
+    //player detection: push angle, distance, area, vx, vy
+    //food pushes angle + distance
+    5 + PLAYER_DETECTION * 5 + FOOD_DETECTION * 2,
     2,
     null,
     {
@@ -82,6 +89,7 @@ function initNeat(){
 function startEvaluation(){
   players = [];
   highestScore = 0;
+  highestMass = 0;
 
   for(var genome in neat.population){
     genome = neat.population[genome];
@@ -91,7 +99,17 @@ function startEvaluation(){
 
 /** End the evaluation of the current generation */
 function endEvaluation(){
-  console.log('Generation:', neat.generation, '- average score:', neat.getAverage());
+    console.log('Generation:', neat.generation, '- average score:', neat.getAverage());
+
+    //calc max score
+    var max = 0;
+    for (var x in neat.population) {
+        max = max < neat.population[x].score ? neat.population[x].score : max;
+    }
+    console.log('MaxScore: ', max);
+
+    console.log('MaxArea: ', MAX_AREA)
+
 
   neat.sort();
   var newPopulation = [];

@@ -4,9 +4,9 @@ function Food(){
   this.area = FOOD_AREA;
 
   this.color = [
-    Math.round(Math.random() * 255),
-    Math.round(Math.random() * 255),
-    Math.round(Math.random() * 255)
+    Math.round(Math.random() * 0),
+    Math.round(Math.random() * 0),
+    Math.round(255)
   ];
 
   foods.push(this);

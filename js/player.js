@@ -1,22 +1,37 @@
-function Player(genome){
+/*
+Stuff 2 do:
+in line ~150, change inputs to get nearby pixels.
+add something that keeps track of how long its been alive (i.e. number of iterations) DONE
+make time alive into a factor for fitness DONE (1/3 of weight, size = 2/3)
+add something that keeps track of enemy cell size in relation to your cell size DONE (was in original code)
+add something that allows cells to "see" gridlines DONE (allowed them to see velocity and modified it if they were at borders instead of changing x direction)
+add something that allows cells to see other cell's velocity DONE (they only "see" in snapshots, so this might be hard under normal circumstances)
+*/
+
+//bug: For some reason, Cells "disappear" when performing the "twitch" motion
+function Player(genome) {
   this.x = Math.floor(Math.random() * WIDTH);
   this.y = Math.floor(Math.random() * HEIGHT);
   this.vx = 0;
   this.vy = 0;
+  this.maxAlive = 0;
+  this.curAlive = 0;
 
   this.brain = genome;
   this.brain.score = 0;
 
   this.area = MIN_AREA;
   this.visualarea = this.area;
+  this.CurDetect_Radius; //flexible search radius.
 
   players.push(this);
 }
 
 Player.prototype = {
   /** Update the stats */
-  update: function(){
-    if(this.area > MAX_AREA) this.area = MAX_AREA;
+    update: function () {
+
+    //if(this.area > MAX_AREA) this.area = MAX_AREA;
     if(this.area < MIN_AREA) this.area = MIN_AREA;
 
     var input = this.detect();
@@ -32,18 +47,35 @@ Player.prototype = {
     this.vx *= Math.max(1 - (this.area / MAX_AREA), MIN_SPEED / SPEED);
     this.vy *= Math.max(1 - (this.area / MAX_AREA), MIN_SPEED / SPEED);
 
+
+    //make border limits modify velocity rather than location
+    this.vx = (this.vx + this.x) >= WIDTH ? WIDTH - this.x : (this.vx + this.x) <= 0 ? (0 - this.x) : this.vx;
+    this.vy = (this.vy + this.y) >= HEIGHT ? HEIGHT - this.y : (this.vy + this.y) <= 0 ? (0 - this.y) : this.vy;
+
     this.x += this.vx;
     this.y += this.vy;
 
     // Limit position to width and height
-    this.x = this.x >= WIDTH ? this.x % WIDTH : this.x <= 0 ? this.x + WIDTH : this.x;
-    this.y = this.y >= HEIGHT ? this.y % HEIGHT : this.y <= 0 ? this.y + HEIGHT : this.y;
+    //this.x = this.x >= WIDTH ? this.x % WIDTH : this.x <= 0 ? this.x + WIDTH : this.x;
+    //this.y = this.y >= HEIGHT ? this.y % HEIGHT : this.y <= 0 ? this.y + HEIGHT : this.y;
 
+    //limit such that you don't teleport around borders -_-  <-----this isn't needed since velocity changes around borders to compensate
+    this.x = this.x >= WIDTH ? WIDTH : this.x <= 0 ? 0: this.x;
+    this.y = this.y >= HEIGHT ? HEIGHT : this.y <= 0 ? 0: this.y;
+
+    //update size (decrease)
     this.area *= DECREASE_SIZE;
 
+    //update max time spent alive
+    this.curAlive++;
+    this.maxAlive = this.maxAlive < this.curAlive ? this.curAlive : this.maxAlive;
+
     // Replace highest score to visualise
-    this.brain.score = this.area;
+    this.brain.score = 10000 * ((.75 * (this.area/MAX_AREA))  + (.05 * (this.maxAlive/ITERATIONS)) + (.20 * (this.curAlive/ITERATIONS))); //set fitness to also include max time spent alive (but at lower weight)
     highestScore = this.brain.score > highestScore ? this.brain.score : highestScore;
+
+    //highest mass for cell leaderboard
+    highestMass = this.area > highestMass ? this.area : highestMass;
   },
 
   /** Restart from new position */
@@ -54,6 +86,7 @@ Player.prototype = {
     this.vy = 0;
     this.area = MIN_AREA;
     this.visualarea = this.area;
+    this.curAlive = 0; //reset time spent alive
   },
 
   /** Display the player on the field */
@@ -80,7 +113,7 @@ Player.prototype = {
 
     var color = activationColor(this.brain.score, highestScore);
     stroke(color);
-    ellipse(this.x, this.y, DETECTION_RADIUS*2);
+    ellipse(this.x, this.y, CurDetect_Radius * 2);
   },
 
   /* Checks if object can be eaten */
@@ -108,7 +141,12 @@ Player.prototype = {
       if(player == this || this.eat(player)) continue;
 
       var dist = distance(this.x, this.y, player.x, player.y);
-      if(dist < DETECTION_RADIUS){
+      
+      //modified detection radius that scales with player size down to the minimum DETECTION_RADIUS var
+      var rad = Math.sqrt(this.visualarea / PI);
+      CurDetect_Radius = rad > (DETECTION_RADIUS * .8) ? rad + (DETECTION_RADIUS * .2) : DETECTION_RADIUS;
+
+      if (dist < CurDetect_Radius) {
         // Check if closer than any other object
         var maxNearestDistance = Math.max.apply(null, playerDistances);
         var index = playerDistances.indexOf(maxNearestDistance);
@@ -129,7 +167,7 @@ Player.prototype = {
       if(this.eat(food)) continue;
 
       var dist = distance(this.x, this.y, food.x, food.y);
-      if(dist < DETECTION_RADIUS){
+      if (dist < CurDetect_Radius) {
         // Check if closer than any other object
         var maxNearestDistance = Math.max.apply(null, foodDistances);
         var index = foodDistances.indexOf(maxNearestDistance);
@@ -141,19 +179,34 @@ Player.prototype = {
       }
     }
 
+    //increase the max area as necessary. It's a bit confusing to the machine, but ensures growth that never ends :)
+    MAX_AREA = this.area > MAX_AREA ? this.area : MAX_AREA;
+
     // Create and normalize input
-    var output = [this.area / MAX_AREA];
+    var output = [this.area / MAX_AREA]; //your area vs. the max that has ever existed
+
+    //check how long you've been alive
+    output.push(this.curAlive / ITERATIONS);
+
+      //output your x and y velocities
+    output.push(this.vx / SPEED);
+    output.push(this.vy / SPEED);
+
+      //output your place on leaderboard
+    output.push(this.area / highestMass);
 
     for(var i = 0; i < PLAYER_DETECTION; i++){
       var player = nearestPlayers[i];
       var dist = playerDistances[i];
-
+       
       if(player == undefined){
-        output = output.concat([0, 0, 0]);
+        output = output.concat([0, 0, 0, 0, 0]);
       } else {
-        output.push(angleToPoint(this.x, this.y, player.x, player.y) / (2 * PI));
-        output.push(dist / DETECTION_RADIUS);
-        output.push(player.area / MAX_AREA);
+        output.push(angleToPoint(this.x, this.y, player.x, player.y) / (2 * PI)); //enemy angle
+        output.push(dist / DETECTION_RADIUS); //enemy distance
+        output.push(player.area / MAX_AREA); //enemy size
+        output.push(player.vx / SPEED); //enemy xvelocity
+        output.push(player.vy / SPEED); //enemy yvelocity
       }
     }
 
@@ -164,8 +217,8 @@ Player.prototype = {
       if(food == undefined){
         output = output.concat([0, 0]);
       } else {
-        output.push(angleToPoint(this.x, this.y, food.x, food.y) / (2 * PI));
-        output.push(dist / DETECTION_RADIUS);
+        output.push(angleToPoint(this.x, this.y, food.x, food.y) / (2 * PI)); //food angle
+        output.push(dist / DETECTION_RADIUS); //food distance
       }
     }
 
